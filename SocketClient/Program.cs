@@ -1,4 +1,5 @@
 ﻿using Min_Helpers;
+using Min_Helpers.LogHelper;
 using Min_Helpers.PrintHelper;
 using System;
 using System.Collections.Generic;
@@ -21,6 +22,7 @@ namespace SocketClient
         }
 
         static Print PrintService { get; set; } = null;
+        static Log LogService { get; set; } = null;
 
         static void Main(string[] args)
         {
@@ -29,9 +31,11 @@ namespace SocketClient
 
             try
             {
-                PrintService = new Print();
+                LogService = new Log();
+                PrintService = new Print(LogService);
 
-                PrintService.WriteLine("App Start", Print.EMode.info);
+                LogService.Write("");
+                PrintService.Log("App Start", Print.EMode.info);
 
                 PrintService.Write("Mode (tcp / udp): ", Print.EMode.question);
                 SocketMode mode = Console.ReadLine() == "tcp" ? SocketMode.Tcp : SocketMode.Udp;
@@ -47,11 +51,11 @@ namespace SocketClient
             catch (Exception ex)
             {
                 ex = ExceptionHelper.GetReal(ex);
-                PrintService.WriteLine($"App Error, {ex.Message}", Print.EMode.error);
+                PrintService.Log($"App Error, {ex.Message}", Print.EMode.error);
             }
             finally
             {
-                PrintService.WriteLine("App End", Print.EMode.info);
+                PrintService.Log("App End", Print.EMode.info);
                 Console.ReadKey();
 
                 Environment.Exit(0);
@@ -85,6 +89,7 @@ namespace SocketClient
                         {
                             try
                             {
+
                                 while (client.Connected && !token.IsCancellationRequested)
                                 {
                                     string message = Console.ReadLine();
