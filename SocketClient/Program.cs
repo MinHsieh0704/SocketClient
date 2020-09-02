@@ -7,7 +7,10 @@ using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reactive.Concurrency;
+using System.Reactive.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -24,6 +27,8 @@ namespace SocketClient
         static Print PrintService { get; set; } = null;
         static Log LogService { get; set; } = null;
 
+        public static Dictionary<string, string> Statuss { get; set; } = new Dictionary<string, string>();
+
         static void Main(string[] args)
         {
             Thread.CurrentThread.CurrentCulture = new CultureInfo("en");
@@ -38,13 +43,15 @@ namespace SocketClient
                 PrintService.Log("App Start", Print.EMode.info);
 
                 PrintService.Write("Mode (tcp / udp): ", Print.EMode.question);
-                SocketMode mode = Console.ReadLine() == "tcp" ? SocketMode.Tcp : SocketMode.Udp;
+                PrintService.WriteLine("tcp", ConsoleColor.Gray);
+                SocketMode mode = SocketMode.Tcp;
 
                 PrintService.Write("Server Ip: ", Print.EMode.question);
                 IPAddress ip = IPAddress.Parse(Console.ReadLine());
 
                 PrintService.Write("Server Port: ", Print.EMode.question);
-                int port = Convert.ToInt32(Console.ReadLine());
+                PrintService.WriteLine("12345", ConsoleColor.Gray);
+                int port = 12345;
 
                 StartClient(ip, port, mode);
             }
@@ -85,47 +92,55 @@ namespace SocketClient
                     {
                         CancellationToken token = tokenSource.Token;
 
-                        Task.Run(() =>
-                        {
-                            try
-                            {
-
-                                while (client.Connected && !token.IsCancellationRequested)
-                                {
-                                    string message = Console.ReadLine();
-                                    if (message == "") continue;
-
-                                    PrintService.Log($"Client: {message}", Print.EMode.message);
-
-                                    byte[] byteData = Encoding.ASCII.GetBytes($"{message}\r\n");
-                                    client.Send(byteData);
-                                }
-                            }
-                            catch (Exception)
-                            {
-                                tokenSource.Cancel();
-                            }
-                        }, token);
-
                         try
                         {
-                            while (client.Connected && !token.IsCancellationRequested)
+                            Task.Run(() =>
                             {
-
-                                byte[] bytes = new byte[1024];
-
-                                int bytesRec = client.Receive(bytes);
-
-                                string message = Encoding.ASCII.GetString(bytes, 0, bytesRec);
-                                message = message.Replace("\n", "").Replace("\r", "");
-
-                                if (!string.IsNullOrEmpty(message))
+                                while (client.Connected)
                                 {
-                                    PrintService.Log($"Server: {message}", Print.EMode.message);
-                                }
-                            }
+                                    byte[] bytes = new byte[1024];
 
-                            tokenSource.Cancel();
+                                    int bytesRec = client.Receive(bytes);
+
+                                    string message = Encoding.ASCII.GetString(bytes, 0, bytesRec);
+                                    if (!string.IsNullOrEmpty(message) && message != "ERROR")
+                                    {
+                                        string[] statuss = Regex.Split(message, "\r\n");
+                                        foreach (var status in statuss)
+                                        {
+                                            if (string.IsNullOrEmpty(status)) continue;
+
+                                            // "+STACH1:1,100000"
+                                            string key = status.Substring(6, 1);
+                                            string value = status.Substring(8, 1);
+                                            Statuss[key] = value;
+                                        }
+                                    }
+                                }
+                            });
+
+                            Observable
+                                .Interval(TimeSpan.FromMilliseconds(1000 / 20))
+                                .ObserveOn(NewThreadScheduler.Default)
+                                .Subscribe((x) =>
+                                {
+                                    byte[] byteData = Encoding.ASCII.GetBytes($"AT+STACH0=?\r\n");
+                                    client.Send(byteData);
+                                });
+
+
+                            Task.Run(() =>
+                            {
+                                while (true)
+                                {
+                                    foreach (var status in Statuss.ToList())
+                                    {
+                                        PrintService.WriteLine($"{status.Key}: {status.Value}", Print.EMode.message);
+                                    }
+
+                                    Thread.Sleep(10);
+                                }
+                            }).Wait();
 
                             client.Shutdown(SocketShutdown.Both);
                             client.Close();
