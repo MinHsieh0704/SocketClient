@@ -136,7 +136,7 @@ namespace SocketClient
                         }
                         finally
                         {
-                            PrintService.Log($"Server({remote}) was disconnected", Print.EMode.warning);
+                            PrintService.Log($"Server<{remote}> was disconnected", Print.EMode.warning);
                         }
                     }
                 }
