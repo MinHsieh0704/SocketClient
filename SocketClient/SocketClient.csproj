@@ -36,8 +36,9 @@
     <ApplicationIcon>icon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Min_Helpers">
-      <HintPath>..\..\Min_Helpers\Min_Helpers\bin\Min_Helpers.dll</HintPath>
+    <Reference Include="Min_Helpers, Version=1.1.2.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>libs\Min_Helpers\Min_Helpers.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -59,4 +60,14 @@
     <Content Include="icon.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PreBuildEvent>cd $(ProjectDir)
+rmdir /Q /S $(ProjectDir)$(OutDir)</PreBuildEvent>
+  </PropertyGroup>
+  <PropertyGroup>
+    <PostBuildEvent>cd $(ProjectDir)libs
+for /R %25%25i in (.) do (robocopy %25%25i $(ProjectDir)$(OutDir) *.dll /xo)
+IF %25ERRORLEVEL%25 LEQ 7 exit /b 0
+Rem ELSE exit /b 1</PostBuildEvent>
+  </PropertyGroup>
 </Project>
